@@ -15,9 +15,10 @@ public class Main {
         while (running) {
             System.out.println("SimpleFrustration Game");
             System.out.println("1. Interactive Custom Play");
-            System.out.println("2. Automated Demo with 10 Scenarios");
-            System.out.println("3. Exit");
-            System.out.print("Enter your choice (1-3): ");
+            System.out.println("2. Automated Demo");
+            System.out.println("3. Interactive Custom Test (Manual Rolls)");
+            System.out.println("4. Exit");
+            System.out.print("Enter your choice (1-4): ");
 
             String choice = scanner.nextLine();
 
@@ -29,10 +30,13 @@ public class Main {
                     playAutomated(scanner);
                     break;
                 case "3":
+                    playInteractiveTest(scanner);
+                    break;
+                case "4":
                     running = false;
                     break;
                 default:
-                    System.out.println("Invalid choice.");
+                    System.out.println("Invalid choice");
             }
             System.out.println();
         }
@@ -123,6 +127,80 @@ public class Main {
                     gameOver = true;
                 } else {
                     turnIndex++;
+                }
+            }
+        }
+    }
+
+    // Interactive test mode with manual dice rolls
+    private static void playInteractiveTest(Scanner scanner) {
+        System.out.println("\n--- Game Rule Configuration ---");
+
+        System.out.print("Select Board Size (1: Basic 18/3, 2: Large 36/6): ");
+        boolean isLargeBoard = scanner.nextLine().equals("2");
+
+        System.out.print("Select Player Count (1: Two Players, 2: Four Players): ");
+        boolean isFourPlayers = scanner.nextLine().equals("2");
+
+        System.out.print("Select Win Rule (1: Allow Overshoot, 2: Exact Win): ");
+        WinRuleStrategy winStrategy = scanner.nextLine().equals("2") ? new ExactWinStrategy() : new AllowOvershootWinStrategy();
+
+        System.out.print("Select Hit Rule (1: Ignore Hit, 2: Send Home): ");
+        HitRuleStrategy hitStrategy = scanner.nextLine().equals("2") ? new SendHomeHitStrategy() : new IgnoreHitStrategy();
+
+        // Setup board
+        int mainPos = isLargeBoard ? 36 : 18;
+        int tailPos = isLargeBoard ? 6 : 3;
+        Board board = new Board(mainPos, tailPos);
+
+        GameManager game = new GameManager(board);
+        game.setWinRuleStrategy(winStrategy);
+        game.setHitRuleStrategy(hitStrategy);
+        game.addObserver(new ConsoleLogger());
+
+        // Setup players and home indices
+        addPlayerToGame(game, board, PlayerColor.RED, 1);
+        addPlayerToGame(game, board, PlayerColor.BLUE, isLargeBoard ? 19 : 10);
+
+        if (isFourPlayers) {
+            addPlayerToGame(game, board, PlayerColor.GREEN, isLargeBoard ? 19 : 19);
+            addPlayerToGame(game, board, PlayerColor.YELLOW, isLargeBoard ? 28 : 28);
+        }
+
+        System.out.println("\nGame started");
+
+        boolean gameOver = false;
+        int turnIndex = 0;
+        List<Player> players = game.getPlayers();
+
+        // Main manual test loop
+        while (!gameOver) {
+            Player currentPlayer = players.get(turnIndex % players.size());
+            System.out.print("\n" + currentPlayer.getName() + "'s turn. Enter roll value or type 'undo': ");
+            String input = scanner.nextLine();
+
+            if (input.equalsIgnoreCase("undo")) {
+                game.undoLastTurn();
+                if (turnIndex > 0) {
+                    turnIndex--;
+                }
+            } else {
+                try {
+                    // Parse manual input and inject a temporary fixed shaker
+                    int manualRoll = Integer.parseInt(input);
+                    DiceShaker manualShaker = new FixedDiceShaker(new int[]{manualRoll});
+
+                    game.simulateTurn(currentPlayer, manualShaker);
+
+                    // Check win condition
+                    if (currentPlayer.getCurrentPosition().getType() == PositionType.END) {
+                        System.out.println(currentPlayer.getName() + " wins in " + currentPlayer.getTurnCount() + " moves");
+                        gameOver = true;
+                    } else {
+                        turnIndex++;
+                    }
+                } catch (NumberFormatException e) {
+                    System.out.println("Invalid input. Please enter a valid number or 'undo'");
                 }
             }
         }
