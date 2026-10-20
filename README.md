@@ -152,11 +152,23 @@ sequenceDiagram
 To guarantee data consistency and support advanced functions such as Undo, a strict 7-stage life cycle for the execution of a turn is employed.
 
 1. **Turn Encapsulation (Command Initialization):** When `GameManager.simulateTurn()` is called, the engine does not immediately change player positions. Instead, it creates a `TurnCommand` and injects the active player and the power source (`DiceShaker`). Therefore, the responsibility of turn execution will be borne by the Command pattern.
+
+
 2. **State Snapshot & Power Generation:** Before any mutation takes place, the `TurnCommand` creates a deep copy of the active player's `currentPosition`. Then it calls the `shake()` method of the abstract `DiceShaker` to obtain a movement value, and the main logic is completely independent of whether 1 or 2 dice are used.
+
+
 3. **Mathematical Evaluation (Board routing):** The command passes the active player and the dice roll to the pure mathematical engine: `Board.calculateMove()`. The `Board` determines the distance from the tail to the diversion point. If the roll exceeds this limit, then the `Board` will need to ask the dynamically added `WinRuleStrategy` for the final placement calculation of the win or overshoot. A final, immutable `BoardPosition` is returned.
+
+
 4. **Proactive Collision Resolution:** Before moving the active player, the `TurnCommand` scans the evaluated destination square. If there is an opponent, then the command will obtain the victim's object reference and its original position immediately. Only after this snapshot is saved will the injected `HitRuleStrategy` be invoked to perform the variation logic like sending the victim HOME.
+
+
 5. **Execution (Mutation):** After resolving all collisions and safely caching the previous state, the command finally mutates the active player's state by calling `activePlayer.moveTo(newPos)` and updating their turn count.
+
+
 6. **Event Broadcasting (Observer Trigger):** `TurnCommand` calls the notification methods of the `GameManager` (Observable). `GameManager` blindly broadcasts the state change to `ConsoleLogger` (an Observer), and `ConsoleLogger` formats and prints the exact specifications required by the assignment brief without changing the domain logic.
+
+
 7. **History Archiving:** The fully executed `TurnCommand`, which now contains the complete scene of the crime (previous positions of both the active player and any victims), is pushed onto the `GameManager`'s history Stack. If `undoLastTurn()` is called subsequently, this command is popped, and its exact snapshot data is used to perfectly reverse the timeline in $O(1)$ time.
 
 ---
@@ -280,5 +292,9 @@ classDiagram
 This project strictly applies OOD patterns and adheres to SOLID principles to support maintainability and extensibility.
 
 1. **Strategy Pattern -> Open-Closed Principle (OCP):** Abstract the collision rules (`HitRuleStrategy`) and the tail-movement rules (`WinRuleStrategy`) into interchangeable interfaces, and the core `GameManager` engine will remain closed to modification but fully open for extension. When a new game variation is needed, a new strategy class can be implemented and injected at runtime without altering the core logic of the existing system.
+
+
 2. **Observer Pattern -> Single Responsibility Principle (SRP) & Loose Coupling:** The assignment brief needs to provide many different formats for console output of turn events. Directly embedding `System.out.println` in `GameManager` or `TurnCommand` would lead to serious console UI logic coupling. The Observer Pattern will be used to handle I/O string formatting in `ConsoleLogger`. The `GameManager` is only an Observable broadcaster, so it is completely decoupled and suitable for future GUI integration of the engine.
+
+
 3. **Command Pattern -> Encapsulation & Robust State Management:** Implementing an undo function for complex collisions is inherently difficult because of state destruction. The Command Pattern (`TurnCommand`) can be used to encapsulate a functional operation within a state-holding object. The command locally caches the exact delta of the crime scene (the victim's reference and their precise location before the hit) and can achieve $O(1)$ perfect state restoration without using large global mementos in the `GameManager`.
